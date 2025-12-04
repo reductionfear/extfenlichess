@@ -1,0 +1,35 @@
+{
+  "manifest_version": 3,
+  "name": "FEN Live Sender",
+  "version": "1.7.0",
+  "description": "Always on listener that sends new FEN positions to a local analyze made by ur truly GlitchFL",
+  "permissions": ["scripting", "tabs", "activeTab"],
+  "host_permissions": ["*://*/*"],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_title": "FEN Live",
+    "default_popup": "popup.html"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["mainListener.js"],
+      "matches": ["<all_urls>"]
+    }
+  ],
+  "content_scripts": [
+    {
+      "matches": ["*://lichess.org/*"],
+      "js": ["mainListener.js"],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": ["<all_urls>"],
+      "js": ["bridge.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}

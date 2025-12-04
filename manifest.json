@@ -15,14 +15,14 @@
   },
   "web_accessible_resources": [
     {
-      "resources": ["mainListener.js"],
+      "resources": ["chess_engine_setup.js", "mainListener.js"],
       "matches": ["<all_urls>"]
     }
   ],
   "content_scripts": [
     {
       "matches": ["*://lichess.org/*"],
-      "js": ["mainListener.js"],
+      "js": ["chess_engine_setup.js", "mainListener.js"],
       "run_at": "document_start",
       "world": "MAIN"
     },

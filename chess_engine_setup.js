@@ -13,6 +13,7 @@ let bestMove = null;              // Calculated best move
 let gameId = null;                // Current game ID
 let isWhite = null;               // Boolean for player color
 let timeLimitMs = 1000;           // Time limit for move calculation (default: 1000)
+let autoMoveEnabled = false;      // Toggle for automove feature
 
 // ==================== Engine Initialization ====================
 /**
@@ -23,6 +24,8 @@ let timeLimitMs = 1000;           // Time limit for move calculation (default: 1
 function initializeChessEngine() {
   return new Promise((resolve, reject) => {
     try {
+      console.log('[Chess Engine] Initializing Stockfish engine...');
+      
       // Check if Stockfish is loaded
       if (!window.STOCKFISH) {
         throw new Error('Stockfish engine not loaded');
@@ -47,6 +50,7 @@ function initializeChessEngine() {
       };
       
       // Configure UCI settings
+      console.log('[Chess Engine] Configuring UCI settings...');
       engineWrapper.postMessage('uci');
       
       // Set Skill Level: 10
@@ -67,8 +71,10 @@ function initializeChessEngine() {
       // Set up the onmessage handler for engine responses
       setupChessEngineOnMessage();
       
+      console.log('[Chess Engine] Stockfish engine initialized successfully');
       resolve(engineWrapper);
     } catch (error) {
+      console.error('[Chess Engine] Failed to initialize engine:', error);
       reject(error);
     }
   });
@@ -202,9 +208,18 @@ function interceptWebSocket() {
  * Uses the current FEN position stored in currentFen.
  */
 function calculateMove() {
-  if (!chessEngine || !currentFen) {
+  // Check if autoMoveEnabled is true before proceeding
+  if (!autoMoveEnabled) {
+    console.log('[Chess Engine] Automove disabled, skipping move calculation');
     return;
   }
+  
+  if (!chessEngine || !currentFen) {
+    console.log('[Chess Engine] Engine or FEN not available');
+    return;
+  }
+  
+  console.log('[Chess Engine] Calculating move for FEN:', currentFen);
   
   // Send position to engine
   chessEngine.postMessage(`position fen ${currentFen}`);
@@ -220,6 +235,7 @@ function calculateMove() {
  */
 function setupChessEngineOnMessage() {
   if (!chessEngine) {
+    console.log('[Chess Engine] Cannot setup onmessage, engine not initialized');
     return;
   }
   
@@ -232,10 +248,12 @@ function setupChessEngineOnMessage() {
     
     // Listen for bestmove responses from Stockfish
     if (data.startsWith('bestmove')) {
+      // Parse the best move from response (e.g., "bestmove e2e4 ponder d7d5" → "e2e4")
       const parts = data.split(' ');
       
       if (parts.length >= 2 && parts[1] !== '(none)') {
         bestMove = parts[1];
+        console.log('[Chess Engine] Best move received:', bestMove);
         
         // Send move via WebSocket in Lichess format
         if (webSocketWrapper && webSocketWrapper.readyState === WebSocket.OPEN) {
@@ -249,7 +267,10 @@ function setupChessEngineOnMessage() {
             }
           });
           
+          console.log('[Chess Engine] Sending move to Lichess:', moveMessage);
           webSocketWrapper.send(moveMessage);
+        } else {
+          console.log('[Chess Engine] WebSocket not available to send move');
         }
       }
     }
@@ -262,6 +283,8 @@ function setupChessEngineOnMessage() {
  * Resets state variables.
  */
 function handleGameEnd() {
+  console.log('[Chess Engine] Game ended, resetting state');
+  
   // Reset state variables
   currentFen = null;
   bestMove = null;
@@ -271,6 +294,29 @@ function handleGameEnd() {
   // Note: chessEngine and webSocketWrapper are kept for potential reuse
 }
 
+// ==================== AutoMove Toggle ====================
+/**
+ * Enable automove functionality.
+ * Exposed globally for popup.js to call.
+ */
+function enableAutoMove() {
+  autoMoveEnabled = true;
+  console.log('[Chess Engine] Automove enabled');
+}
+
+/**
+ * Disable automove functionality.
+ * Exposed globally for popup.js to call.
+ */
+function disableAutoMove() {
+  autoMoveEnabled = false;
+  console.log('[Chess Engine] Automove disabled');
+}
+
+// Expose functions globally for popup.js
+window.enableAutoMove = enableAutoMove;
+window.disableAutoMove = disableAutoMove;
+
 // Export functions for external use (if using modules)
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
@@ -279,6 +325,8 @@ if (typeof module !== 'undefined' && module.exports) {
     interceptWebSocket,
     calculateMove,
     setupChessEngineOnMessage,
-    handleGameEnd
+    handleGameEnd,
+    enableAutoMove,
+    disableAutoMove
   };
 }

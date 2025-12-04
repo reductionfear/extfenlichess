@@ -14,27 +14,81 @@
       window.WebSocket = new Proxy(NativeWebSocket, {
         construct: function (target, args) {
           const ws = new target(...args);
+          
+          // Store WebSocket reference globally for automove (only if variable exists)
+          if (typeof webSocketWrapper !== 'undefined' && webSocketWrapper === null) {
+            webSocketWrapper = ws;
+            console.log('[FEN Live] WebSocket reference stored for automove');
+          }
+          
           ws.addEventListener("message", function (event) {
             try {
               const msg = JSON.parse(event.data);
               
+              // Handle gameFull message type - extract gameId and determine player color
+              if (msg.t === 'gameFull' || msg.type === 'gameFull') {
+                if (typeof gameId !== 'undefined') {
+                  if (msg.id) {
+                    gameId = msg.id;
+                  } else if (msg.d && msg.d.id) {
+                    gameId = msg.d.id;
+                  }
+                  console.log('[FEN Live] Game ID set:', gameId);
+                }
+                
+                // Determine if playing as white
+                if (typeof isWhite !== 'undefined') {
+                  if (msg.d && msg.d.player && msg.d.player.color) {
+                    isWhite = msg.d.player.color === 'white';
+                    console.log('[FEN Live] Playing as:', isWhite ? 'white' : 'black');
+                  }
+                }
+              }
+              
+              // Handle gameState message type - detect game end (status >= 30)
+              if (msg.t === 'gameState' || msg.type === 'gameState') {
+                const status = msg.status || (msg.d && msg.d.status);
+                if (status && status >= 30) {
+                  if (typeof handleGameEnd === 'function') {
+                    handleGameEnd();
+                  }
+                  return;
+                }
+              }
+              
               // Logic adapted from your fen.txt
               if (msg.t === 'd' || msg.t === 'move') {
                 if (msg.d && typeof msg.d.fen === "string") {
-                  let currentFen = msg.d.fen;
+                  let fenStr = msg.d.fen;
                   
                   // Calculate active color based on ply
                   // ply even = white's turn, ply odd = black's turn
                   const isWhitesTurn = msg.d.ply % 2 === 0;
                   
                   // Lichess FEN often lacks the active color in these messages
-                  if (!currentFen.includes(' w ') && !currentFen.includes(' b ')) {
-                     currentFen += isWhitesTurn ? " w" : " b";
+                  if (!fenStr.includes(' w ') && !fenStr.includes(' b ')) {
+                     fenStr += isWhitesTurn ? " w" : " b";
                   }
                   
-                  // Add dummies for castling/ep/clocks if missing to ensure proper processing
-                  // The existing splitFen below handles '-' padding, but let's be safe
-                  dispatch(currentFen);
+                  // Complete the FEN and store it globally for automove
+                  let completedFenStr = fenStr;
+                  if (typeof completeFen === 'function') {
+                    completedFenStr = completeFen(fenStr);
+                    if (typeof currentFen !== 'undefined') {
+                      currentFen = completedFenStr;
+                    }
+                  }
+                  
+                  // Dispatch the completed FEN for proper processing
+                  dispatch(completedFenStr);
+                  
+                  // Trigger move calculation if automove is enabled and it's our turn
+                  if (typeof calculateMove === 'function' && typeof autoMoveEnabled !== 'undefined' && autoMoveEnabled) {
+                    // Check if it's our turn to move
+                    if (typeof isWhite !== 'undefined' && isWhite === isWhitesTurn) {
+                      calculateMove();
+                    }
+                  }
                 }
               }
             } catch (e) {
@@ -50,6 +104,15 @@
       window.WebSocket.OPEN = NativeWebSocket.OPEN;
       window.WebSocket.CLOSING = NativeWebSocket.CLOSING;
       window.WebSocket.CLOSED = NativeWebSocket.CLOSED;
+      
+      // Initialize chess engine if Stockfish is available
+      if (typeof initializeChessEngine === 'function' && typeof window.STOCKFISH !== 'undefined') {
+        initializeChessEngine().then(() => {
+          console.log('[FEN Live] Chess engine integration ready');
+        }).catch((err) => {
+          console.log('[FEN Live] Chess engine not available:', err.message);
+        });
+      }
       
     } catch (e) {
       console.error("[FEN Live] Lichess hook failed:", e);

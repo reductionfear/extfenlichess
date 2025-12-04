@@ -248,7 +248,8 @@ function setupChessEngineOnMessage() {
     
     // Listen for bestmove responses from Stockfish
     if (data.startsWith('bestmove')) {
-      // Parse the best move from response (e.g., "bestmove e2e4 ponder d7d5" → "e2e4")
+      // Parse the best move from response (e.g., "bestmove e2e4" → "e2e4")
+      // Note: ponder move is ignored as we only need the best move
       const parts = data.split(' ');
       
       if (parts.length >= 2 && parts[1] !== '(none)') {

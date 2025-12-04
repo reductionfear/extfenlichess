@@ -15,8 +15,8 @@
         construct: function (target, args) {
           const ws = new target(...args);
           
-          // Store WebSocket reference globally for automove
-          if (typeof webSocketWrapper !== 'undefined') {
+          // Store WebSocket reference globally for automove (only if variable exists)
+          if (typeof webSocketWrapper !== 'undefined' && webSocketWrapper === null) {
             webSocketWrapper = ws;
             console.log('[FEN Live] WebSocket reference stored for automove');
           }
@@ -71,24 +71,22 @@
                   }
                   
                   // Complete the FEN and store it globally for automove
+                  let completedFenStr = fenStr;
                   if (typeof completeFen === 'function') {
-                    const completedFen = completeFen(fenStr);
+                    completedFenStr = completeFen(fenStr);
                     if (typeof currentFen !== 'undefined') {
-                      currentFen = completedFen;
+                      currentFen = completedFenStr;
                     }
                   }
                   
-                  // Add dummies for castling/ep/clocks if missing to ensure proper processing
-                  // The existing splitFen below handles '-' padding, but let's be safe
-                  dispatch(fenStr);
+                  // Dispatch the completed FEN for proper processing
+                  dispatch(completedFenStr);
                   
                   // Trigger move calculation if automove is enabled and it's our turn
                   if (typeof calculateMove === 'function' && typeof autoMoveEnabled !== 'undefined' && autoMoveEnabled) {
                     // Check if it's our turn to move
-                    if (typeof isWhite !== 'undefined') {
-                      if ((isWhite && isWhitesTurn) || (!isWhite && !isWhitesTurn)) {
-                        calculateMove();
-                      }
+                    if (typeof isWhite !== 'undefined' && isWhite === isWhitesTurn) {
+                      calculateMove();
                     }
                   }
                 }

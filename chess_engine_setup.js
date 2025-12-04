@@ -23,6 +23,11 @@ let timeLimitMs = 1000;           // Time limit for move calculation (default: 1
 function initializeChessEngine() {
   return new Promise((resolve, reject) => {
     try {
+      // Check if Stockfish is loaded
+      if (!window.STOCKFISH) {
+        throw new Error('Stockfish engine not loaded');
+      }
+      
       // Load Stockfish WASM/emscripten engine via window.STOCKFISH()
       const engine = window.STOCKFISH();
       
@@ -132,13 +137,8 @@ function interceptWebSocket() {
               gameId = message.d.id;
             }
             
-            // Determine if playing as white
-            if (message.white && message.white.id) {
-              // Compare with the current user (would need to be set elsewhere)
-              // For now, check if we're white based on available data
-              isWhite = true; // Default assumption, can be refined
-            }
-            if (message.d && message.d.player) {
+            // Determine if playing as white based on player data
+            if (message.d && message.d.player && message.d.player.color) {
               isWhite = message.d.player.color === 'white';
             }
           }
@@ -158,7 +158,9 @@ function interceptWebSocket() {
               const fen = message.d.fen;
               const ply = message.d.ply;
               
-              // Determine turn from ply (ply % 2 === 0 = white's turn)
+              // Determine turn from ply
+              // In Lichess: ply 0 = initial position (white to move), ply 1 = after white's move (black to move)
+              // So ply % 2 === 0 means white's turn
               const isWhitesTurn = ply % 2 === 0;
               const turn = isWhitesTurn ? 'w' : 'b';
               
@@ -240,10 +242,10 @@ function setupChessEngineOnMessage() {
           const moveMessage = JSON.stringify({
             t: 'move',
             d: {
-              u: bestMove,
-              b: 1,
-              l: 10000,
-              a: 1
+              u: bestMove,   // The move in UCI format (e.g., "e2e4")
+              b: 1,          // Blur count - number of times focus was lost
+              l: 10000,      // Lag in milliseconds
+              a: 1           // Ack - acknowledgment flag
             }
           });
           
